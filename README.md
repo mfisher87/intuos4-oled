@@ -1,12 +1,12 @@
 # intuos4-oled
+
 Send cool images and text to the Wacom Intuos 4 OLEDs on Linux.
 
-The Intuos4 is an old tablet, but it works well, and you can have fun
-playing with the small OLED screens.  There is built-in support in the
-Linux kernel, but the access to it is not so obvious (and several
-pages on the web are outdated).  The purpose of this project is to
-make it easy. It includes text messages, image processing, auto-saving
-profiles...
+The Intuos4 is an old tablet, but it works well, and you can have fun playing
+with the small OLED screens. There is built-in support in the Linux kernel, but
+the access to it is not so obvious (and several pages on the web are outdated).
+The purpose of this project is to make it easy. It includes text messages,
+image processing, auto-saving profiles...
 
 ```
 usage: intuos4oled.py [-h] [-t TEXT] [-i IMAGE] [-b BUTTON] [-s SPAN]
@@ -34,7 +34,10 @@ optional arguments:
   --nosync              Don't synchronize images with datafile
 ```
 
-## Examples
+
+## Usage
+
+### Examples
 
 ```
 intuos4oled.py set -i images/tux.png -b 0
@@ -60,7 +63,8 @@ line break with '\n', and change the font.
 *Warning* For text to work, you need to install the `imagemagick`
  package.
 
-## Restore images
+
+### Restore images
 
 After the Tablet has been disconnected, you can easily restore the
 previous state:
@@ -69,17 +73,24 @@ previous state:
 intuos4oled.py update
 ```
 
+
 ## Installation
 
-You need standard Python and Imagemagick installs. It should work both
-with Python2 (for instance with Ubuntu 16.4) or Python3.  In addition
-you should install the `python-pil `packages.  In order to react to
-udev events (plus/unplug) you also need the `at` scheduler: in Ubuntu,
-you can do `sudo apt install at python-pil`.
 
-Installing intuos4oled goes as follows: get the archive, unzip, cd into
-it and run the `scripts/install.sh` script. That is, open a terminal and type
-the following lines (RETURN after each line):
+### Prerequisites
+
+You need standard Python and Imagemagick installs. It should work both with
+Python2 (for instance with Ubuntu 16.4) or Python3. In addition you should
+install the `python-pil `packages. In order to react to udev events
+(plus/unplug) you also need the `at` scheduler: in Ubuntu, you can do `sudo apt
+install at python-pil`.
+
+
+### Install
+
+Installing intuos4oled goes as follows: get the archive (or clone the source),
+unzip, cd into it and run the `scripts/install.sh` script. That is, open a
+terminal and type the following lines (RETURN after each line):
 
 ```bash
 cd /tmp
@@ -88,9 +99,14 @@ unzip master.zip
 cd intuos4-oled-master
 sudo ./scripts/install.sh $USER
 ```
+
 That's it! You can now plug in the tablet.
 
+
+## Manual installation
+
 If you prefer to do it manually, step by step, here are the explanations:
+
 
 ### Quick test
 
@@ -99,7 +115,9 @@ If you downloaded the
 github, unzipped it, and `cd` into it, then the script is already
 executable. But just in case, type:
 
-``` chmod 755 intuos4oled.py ```
+```
+chmod 755 intuos4oled.py
+```
 
 There is nothing more to do to start testing. You can try:
 ```
@@ -114,7 +132,8 @@ sudo ./intuos4oled.py init
 
 And then for all subsequent calls, you don't need sudo anymore.
 
-### Permanent installation
+
+### Make the install permanent
 
 1. Make sure the script is executable and move it to a location in you
    `$PATH`. Here we use `/usr/local/bin`. This should work for everyone.
@@ -134,6 +153,7 @@ sudo cp 99-wacom.rules /etc/udev/rules.d/99-wacom.rules
 
 (This might require a restart, or instead you can type `sudo udevadm
 control --reload-rules && udevadm trigger`)
+
 
 ### Make it automatic
 
@@ -157,6 +177,11 @@ environments. For instance, the Wacom config from KDE is awesome.
 kcmshell4 kcm_wacomtablet
 ```
 
+And
+[`xsetwacom`](https://github.com/linuxwacom/xf86-input-wacom/wiki/xsetwacom)
+provides a CLI interface.
+
+
 ## More and more
 
 A few things that I should consider because I don't see how to do them
@@ -169,11 +194,12 @@ with standard tools:
 
 * Write a game on the OLED screen and use the touch ring to play ;)
 
-## Photos
+## Demos
 
 ### Text is often more useful than images:
 
 ![test1](https://github.com/sanette/intuos4-oled/blob/master/images/demos/text_buttons.jpg)
+
 
 ### But a Haiku and a nice image are good, too:
 
