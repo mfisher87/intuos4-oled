@@ -37,13 +37,13 @@ optional arguments:
 ## Examples
 
 ```
-intuos4oled.py set -i tux.png -b 0
+intuos4oled.py set -i images/tux.png -b 0
 ```
 
 This will display the "tux.png" icon on the button #0.
 
 ```
-intuos4oled.py set -b 7 -i woman64.png -f -s 4
+intuos4oled.py set -b 7 -i images/woman64.png -f -s 4
 ```
 
 This will display the image "woman64.png" on the tablet, spanning over
@@ -103,7 +103,7 @@ executable. But just in case, type:
 
 There is nothing more to do to start testing. You can try:
 ```
-sudo ./intuos4oled.py set -i tux.png -b 0
+sudo ./intuos4oled.py set -i images/tux.png -b 0
 ```
 
 Depending on your system, the `sudo` might not be necessary. If it is, then
@@ -173,9 +173,9 @@ with standard tools:
 
 ### Text is often more useful than images:
 
-![test1](https://github.com/sanette/intuos4-oled/blob/master/tests/text_buttons.jpg)
+![test1](https://github.com/sanette/intuos4-oled/blob/master/images/demos/text_buttons.jpg)
 
 ### But a Haiku and a nice image are good, too:
 
-![test2](https://github.com/sanette/intuos4-oled/blob/master/tests/haiku.jpg)
+![test2](https://github.com/sanette/intuos4-oled/blob/master/images/demos/haiku.jpg)
 
