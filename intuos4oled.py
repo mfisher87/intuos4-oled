@@ -75,7 +75,7 @@ class Screen:
         sync=True,
     ) -> None:
         if ids is None:
-            ids = get_usb_ids ()
+            ids = get_usb_ids()
         self.ids = ids
         w = wacom_from_id(ids)[0]
         self.model = w[2] + " " + w[3]
@@ -166,11 +166,12 @@ class Screen:
 
 
 def sudo_init(ids):
-    """Set leds writable by all
+    """Set leds writable by all.
 
     This has to be executed with root privileges after each connection of the
     Tablet if there is no udev rules that take care of this.
     """
+    print(f"Initializing {ids=}")
     path = get_path(ids)
     for button in range(8):
         btn_path = os.path.join(path, BUTTON%button)
@@ -510,24 +511,30 @@ if __name__ == "__main__":
         exit(1)
 
     if args.id is None:
-        ids = get_usb_ids ()
+        ids = get_usb_ids()
         if ids is None:
             print("ERROR: Cannot get the Intuos4 ids.")
             exit(1)
     else:
         ids = (WACOM_ID, int(args.id, 0))
 
-    # INIT
+    # INIT -- NOTE: Must be run as root.
     if args.command == 'init':
         sudo_init(ids)
         print("Root initialization done.")
         print(time.strftime('%X %x %Z'))
+
         exit(0)
 
-    screen = Screen(ids, datafile = args.sync, sync = not args.nosync)
+    screen = Screen(
+        ids,
+        datafile=args.sync,
+        sync=not args.nosync,
+    )
 
 
-    # UPDATE
+    # UPDATE -- NOTE: Must be run as non-root, as config is stored in
+    # `$HOME/.intuos`.
     if args.command == 'update':
         exit(0)
 
