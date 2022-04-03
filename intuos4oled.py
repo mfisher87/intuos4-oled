@@ -7,17 +7,19 @@
 # Matt Fisher, 2022
 #
 
-import sys
-import stat
-import re
-import subprocess
-import os.path
 import argparse
+import os.path
+import re
+import shutil
+import subprocess
+import stat
+import struct
+import sys
 import tempfile
 import time
 
 import PIL.Image as Image
-import struct
+
 
 PYVERS_MAJOR = sys.version_info.major
 PYVERS_MINOR = sys.version_info.minor
@@ -50,10 +52,15 @@ TARGET_HEIGHT = 32
 
 def check_button_range(button: int, /) -> bool:
     if button < 0 or button > 7:
-        print ("ERROR: button %i out of range."%button)
+        print("ERROR: button %i out of range."%button)
         return False
     else:
         return True
+
+
+def check_for_imagemagick() -> None:
+    if shutil.which('convert') is None:
+        raise RuntimeError('Imagemagick must be installed.')
 
 
 class Screen:
@@ -89,7 +96,7 @@ class Screen:
         with open(led_path, 'r') as f:
             line = f.readline()
         self.led = int(line)
-        print ("Active led = %u"%self.led)
+        print("Active led = %u"%self.led)
 
     def update(self) -> None:
         """Update path and led status."""
@@ -138,7 +145,7 @@ class Screen:
         if filename is None:
             filename = self.datafile
         if os.path.exists(filename):
-            print ("Loading datafile %s"%filename)
+            print("Loading datafile %s"%filename)
             with open(filename, 'rb') as file:
                 l = file.readline().strip()
                 for led in range(4):
@@ -152,10 +159,10 @@ class Screen:
                             else:
                                 self.raw[led][button] = raw
                         elif l == b"None":
-                            #print ("No saved image for led=%i, button=%i."%(led, button))
+                            #print("No saved image for led=%i, button=%i."%(led, button))
                             pass
                         else:
-                            print ("ERROR: wrong format in file %s for led=%i, button=%i."%(filename, led, button))
+                            print("ERROR: wrong format in file %s for led=%i, button=%i."%(filename, led, button))
 
 
 def sudo_init(ids):
@@ -171,7 +178,7 @@ def sudo_init(ids):
         # Wait 10 seconds for button path to exist
         for i in range(10):
             if not os.path.exists(btn_path):
-                print ("Waiting for button %i"%button)
+                print("Waiting for button %i"%button)
                 time.sleep(1)
             else:
                 break
@@ -217,7 +224,7 @@ def img_to_raw(im, flip, rv, keep_ratio = False):
 
     # If there is an alpha channel, we need to blend it.
     if 'A' in im.getbands():
-        print ("Blending alpha channel to %s."%name)
+        print("Blending alpha channel to %s."%name)
         im = im.convert(mode='RGBA')
         im2 = Image.new('RGBA', im.size, color)
         im = Image.alpha_composite(im2, im)
@@ -235,13 +242,13 @@ def img_to_raw(im, flip, rv, keep_ratio = False):
     else:
         tw, th = TARGET_WIDTH, TARGET_HEIGHT
     if w != tw or h != th:
-        print ("Warning: we need to resize the %ix%i image to %ix%i."
+        print("Warning: we need to resize the %ix%i image to %ix%i."
                    %(w, h, tw, th))
         im = im.resize((tw, th), Image.LANCZOS)
 
     # Center image
     if tw != TARGET_WIDTH or th != TARGET_HEIGHT:
-        print ("Centering image.")
+        print("Centering image.")
         im2 = Image.new('L', (TARGET_WIDTH, TARGET_HEIGHT), color[0])
         if tw < TARGET_WIDTH:
             x, y = (TARGET_WIDTH - tw)/2, 0
@@ -280,7 +287,7 @@ def ids_from_string(s):
         product = s.group(2)
         return (int(vendor,16), int(product, 16))
     else:
-        print ("ERROR: badly formatted line from lsusb:\n%s"%s)
+        print("ERROR: badly formatted line from lsusb:\n%s"%s)
         return (None)
 
 
@@ -301,12 +308,12 @@ def get_usb_ids(): # somewhat slow; do it only once if possible.
        if w != []:
            wacoms += w
     if wacoms == []:
-        print ("ERROR: No compatible Wacom tablet is connected or recognized.")
+        print("ERROR: No compatible Wacom tablet is connected or recognized.")
         return (None)
     elif len(wacoms) > 1:
-        print ("WARNING: several Wacom tablet are connected. We choose the first one")
+        print("WARNING: several Wacom tablet are connected. We choose the first one")
     w = wacoms[0]
-    print ("Using Wacom %s %s (%s)"%(w[2], w[3], w[1]))
+    print("Using Wacom %s %s (%s)"%(w[2], w[3], w[1]))
     return (w[0])
 
 
@@ -328,7 +335,7 @@ def get_path(ids):  # this is a bit slow (60ms?)
         raise Exception ("ERROR: no corresponding directory found in %s for device (%04x,%04x)"%(DEVICES_PATH, vendor, product))
     else:
         if len(file) > 1:
-            print ("Warning: found more than one corresponding directory in %s"%DEVICES_PATH)
+            print("Warning: found more than one corresponding directory in %s"%DEVICES_PATH)
         return (os.path.join(DEVICES_PATH, file[0], WACOM_LED))
 
 
@@ -375,7 +382,7 @@ def send_multi_image(
     """
     button = (7 - top_button if flip else top_button)
     if button + btn_span > 8:
-        print ("ERROR: there are no %u button(s) available below #%u"%(btn_span, top_button))
+        print("ERROR: there are no %u button(s) available below #%u"%(btn_span, top_button))
         return (None)
     image = Image.open(filename)
     width = image.size[0]
@@ -396,20 +403,22 @@ def clear_buttons(button, span, screen, flip):
     r = range(min(button, last_button), max(button, last_button)+1)
     raw = bytearray(int(TARGET_HEIGHT * TARGET_WIDTH / 2))
     for b in r:
-        print ("Clearing button %u"%b)
+        print("Clearing button %u"%b)
         update_raw (raw, b, screen)
 
 
-def get_font_path(font):
+def get_font_path(font: str):
     l = subprocess.check_output(["fc-list"])
-    l = [str(line) for line in l.splitlines()]
+    l = [line.decode('utf-8') for line in l.splitlines()]
     f = [x for x in l if font in x]
 
     if f == []:
-        print ("ERROR: font %s not found"%font)
+        print("ERROR: font %s not found"%font)
         return None
 
-    return f[0].split(':')[0]
+    font = f[0].split(':')[0]
+    print(f"Found font {font}")
+    return font
 
 
 def text_to_img(
@@ -439,12 +448,13 @@ def text_to_img(
         "white",
     ]
     args2 = ["caption:%s"%text, output]
+
     ret = subprocess.call(args1 + resize + args2)
-    if ret == 0:
-        #print ("Image %s successfully created"%output)
-        pass
-    else:
-        print ("ERROR: in creating %s"%output)
+    if ret != 0:
+        print("ERROR: in creating %s"%output)
+        return
+
+    #print("Image %s successfully created"%output)
 
 
 def send_text(
@@ -496,30 +506,30 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.command not in commands:
-        print ("Command argument not recognized. Should be one of %s."%(", ".join(commands)))
-        exit (1)
+        print("Command argument not recognized. Should be one of %s."%(", ".join(commands)))
+        exit(1)
 
     if args.id is None:
         ids = get_usb_ids ()
         if ids is None:
-            print ("ERROR: Cannot get the Intuos4 ids.")
-            exit (1)
+            print("ERROR: Cannot get the Intuos4 ids.")
+            exit(1)
     else:
         ids = (WACOM_ID, int(args.id, 0))
 
     # INIT
     if args.command == 'init':
         sudo_init(ids)
-        print ("Root initialization done.")
-        print (time.strftime('%X %x %Z'))
-        exit (0)
+        print("Root initialization done.")
+        print(time.strftime('%X %x %Z'))
+        exit(0)
 
     screen = Screen(ids, datafile = args.sync, sync = not args.nosync)
 
 
     # UPDATE
     if args.command == 'update':
-        exit (0)
+        exit(0)
 
     # LOAD or CLEAR
     if args.button is None:
@@ -527,7 +537,7 @@ if __name__ == "__main__":
         args.span = 8
 
     if not check_button_range(args.button):
-        exit (1)
+        exit(1)
 
     # CLEAR
     if args.command == 'clear':
@@ -540,16 +550,18 @@ if __name__ == "__main__":
         if args.image is None:
             if args.text is None:
                 if args.lum is None:
-                    print ("ERROR: Nothing to be set.")
-                    exit (1)
+                    print("ERROR: Nothing to be set.")
+                    exit(1)
 
             else: # text is not None
-                print ("Sending \"%s\" to button %u"%(args.text, args.button))
+                check_for_imagemagick()
+                print("Sending \"%s\" to button %u"%(args.text, args.button))
                 send_text(args.text, args.button, screen, flip = args.flip,
                         span = args.span, font = args.font, size = None)
+
         else: # image is not None
             if args.text is not None:
-                print ("Using image %s and ignoring text %s."%(args.image, args.text))
+                print("Using image %s and ignoring text %s."%(args.image, args.text))
             if args.span is None:
                 send_image(args.image, args.button, screen,
                            flip = args.flip, rv = args.rv, keep_ratio = args.kr)
@@ -559,4 +571,4 @@ if __name__ == "__main__":
 
     if args.text is not None or args.image is not None:
         screen.save()
-    print ("Done")
+    print("Done")
