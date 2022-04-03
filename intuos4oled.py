@@ -4,7 +4,7 @@
 #
 # send images to the Wacom Intuos4 OLEDs.
 # San Vu Ngoc, 2019
-#
+# Matt Fisher, 2022
 #
 
 import sys
@@ -19,7 +19,16 @@ import time
 import PIL.Image as Image
 import struct
 
-PY3 = sys.version_info.major == 3
+PYVERS_MAJOR = sys.version_info.major
+PYVERS_MINOR = sys.version_info.minor
+
+# Python 3.6 and older are EOL. If you want support for older versions, PRs are
+# accepted.
+if PYVERS_MAJOR < 3 and PYVERS_MINOR < 10:
+    raise NotImplementedError(
+        f'This tool only supports Python 3.7 and newer. {sys.version_info=}'
+    )
+
 CONF_PATH = os.path.join(os.path.expanduser("~"), ".intuos")
 DEVICES_PATH = "/sys/bus/hid/devices/"
 WACOM_LED = "wacom_led"
@@ -33,21 +42,31 @@ USB_IDS = [
     ((WACOM_ID, 0x00b9), "PTK-640", "Intuos4", "(6x9)"),
     ((WACOM_ID, 0x00ba), "PTK-840", "Intuos4", "(8x13)"),
     ((WACOM_ID, 0x00bb), "PTK-1240", "Intuos4", "(12x19)"),
-    ((WACOM_ID, 0x00bc), "PTK-540WL", "Intuos4", "Wireless")]
+    ((WACOM_ID, 0x00bc), "PTK-540WL", "Intuos4", "Wireless"),
+]
 TARGET_WIDTH = 64
 TARGET_HEIGHT = 32
 
-def check_range (button):
+
+def check_button_range(button: int, /) -> bool:
     if button < 0 or button > 7:
         print ("ERROR: button %i out of range."%button)
-        return (False)
+        return False
     else:
-        return (True)
-    
+        return True
+
+
 class Screen:
     """Data for the 8 button images for all 4 led positions"""
 
-    def __init__(self, ids = None, datafile = None, sync = True):
+    def __init__(
+        self,
+        # TODO: IDs is a tuple of (vendor_id, device_id). It should be two
+        # parameters instead!
+        ids=None,
+        datafile=None,
+        sync=True,
+    ) -> None:
         if ids is None:
             ids = get_usb_ids ()
         self.ids = ids
@@ -63,8 +82,8 @@ class Screen:
         self.datafile = datafile
         self.raw = [[None for x in range(8)] for led in range(4)]
         self.load()
-        
-    def update_led (self):
+
+    def update_led(self) -> None:
         """Get the status led: 0,1,2,3"""
         led_path = os.path.join(self.path, STATUS_LED0)
         with open(led_path, 'r') as f:
@@ -72,35 +91,35 @@ class Screen:
         self.led = int(line)
         print ("Active led = %u"%self.led)
 
-    def update (self):
+    def update(self) -> None:
         """Update path and led status."""
         self.path = get_path(ids)
         self.update_led()
 
-    def refresh (self):
+    def refresh(self) -> None:
         """Refresh all saved buttons"""
         # Use this if the tablet has been deconnected.
         for button in range(8):
             raw = self.raw[self.led][button]
             if raw is not None:
                 send_raw(raw, button, self)
-        
-    def get_raw (self, button):
-        if check_range(button):
-            return (self.raw[self.led][button])
-        else:
-            return (None)
 
-    def set_raw(self, button, raw_data):
-        if check_range(button):
+    def get_raw(self, button: int):
+        if check_button_range(button):
+            return self.raw[self.led][button]
+        else:
+            return None
+
+    def set_raw(self, button, raw_data) -> None:
+        if check_button_range(button):
             self.raw[self.led][button] = raw_data
 
-    def save(self, filename = None):
+    def save(self, filename=None) -> None:
         if self.datafile is None:
-            return (None)
+            return
         if filename is None:
             filename = self.datafile
-        print ("Saving to %s"%filename)
+        print("Saving to %s"%filename)
         with open(filename, 'wb') as outfile:
             outfile.write(("(%u,%u)\n" % (self.ids[0], self.ids[1])).encode())
             for led in range(4):
@@ -111,10 +130,10 @@ class Screen:
                         outfile.write("Raw:\n".encode())
                         outfile.write(self.raw[led][button])
 
-    def load(self, filename = None):
+    def load(self, filename=None) -> None:
         """Load config file and update the tablet"""
         if self.datafile is None:
-            return (None)
+            return
         size = int(TARGET_HEIGHT*TARGET_WIDTH/2)
         if filename is None:
             filename = self.datafile
@@ -138,16 +157,18 @@ class Screen:
                         else:
                             print ("ERROR: wrong format in file %s for led=%i, button=%i."%(filename, led, button))
 
-def sudo_init (ids):
+
+def sudo_init(ids):
     """Set leds writable by all
-    
-    This has to be executed with root priviledges after each
-    connection of the Tablet if there is no udev rules that take care of
-    this.
+
+    This has to be executed with root privileges after each connection of the
+    Tablet if there is no udev rules that take care of this.
     """
     path = get_path(ids)
     for button in range(8):
         btn_path = os.path.join(path, BUTTON%button)
+
+        # Wait 10 seconds for button path to exist
         for i in range(10):
             if not os.path.exists(btn_path):
                 print ("Waiting for button %i"%button)
@@ -155,44 +176,47 @@ def sudo_init (ids):
             else:
                 break
         os.chmod(btn_path, stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH)
+
     RWALL = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
     led_path = os.path.join(path, STATUS_LED0)
     os.chmod(led_path, RWALL)
     luminance = os.path.join(path, LUMINANCE)
     os.chmod(luminance, RWALL)
 
-def set_luminance (path, luminance):
+
+def set_luminance(path, luminance):
     lumi_path = os.path.join(path, LUMINANCE)
     with open(lumi_path, 'wb') as outfile:
         outfile.write(str(luminance).encode())
 
-def img_to_raw (im, flip, rv, keep_ratio = False):
+
+def img_to_raw(im, flip, rv, keep_ratio = False):
     """Convert an image to a raw 1024 bytearray for the Intuos4.
 
     Suitable for displaying on one button screen.  'flip' should be True
     if the buttons are on the right-hand side (left-handed configuration).
     """
 
-# cf https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-driver-wacom
-# :
-# When writing a 1024 byte raw image in Wacom Intuos 4
-# interleaving format to the file, the image shows up on Button N
-# of the device. The image is a 64x32 pixel 4-bit gray image. The
-# 1024 byte binary is split up into 16x 64 byte chunks. Each 64
-# byte chunk encodes the image data for two consecutive lines on
-# the display. The low nibble of each byte contains the first
-# line, and the high nibble contains the second line.
-# When the Wacom Intuos 4 is connected over Bluetooth, the
-# image has to contain 256 bytes (64x32 px 1 bit colour).
-# The format is also scrambled, like in the USB mode, and it can
-# be summarized by converting 76543210 into GECA6420.
-#                             HGFEDCBA      HFDB7531
+    # cf https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-driver-wacom
+    # :
+    # When writing a 1024 byte raw image in Wacom Intuos 4
+    # interleaving format to the file, the image shows up on Button N
+    # of the device. The image is a 64x32 pixel 4-bit gray image. The
+    # 1024 byte binary is split up into 16x 64 byte chunks. Each 64
+    # byte chunk encodes the image data for two consecutive lines on
+    # the display. The low nibble of each byte contains the first
+    # line, and the high nibble contains the second line.
+    # When the Wacom Intuos 4 is connected over Bluetooth, the
+    # image has to contain 256 bytes (64x32 px 1 bit colour).
+    # The format is also scrambled, like in the USB mode, and it can
+    # be summarized by converting 76543210 into GECA6420.
+    #                             HGFEDCBA      HFDB7531
 
     # Background color
     color, name = ((255,255,255), "white") if rv else ((0,0,0), "black")
-    
+
     # If there is an alpha channel, we need to blend it.
-    if 'A' in im.getbands(): 
+    if 'A' in im.getbands():
         print ("Blending alpha channel to %s."%name)
         im = im.convert(mode='RGBA')
         im2 = Image.new('RGBA', im.size, color)
@@ -226,9 +250,9 @@ def img_to_raw (im, flip, rv, keep_ratio = False):
         im2.paste(im,(x,y))
         print(x,y)
         im.save('/tmp/aaa.png')
-        
+
         im = im2
-        
+
     # Convert grayscale image into interlaced 4bits raw bytes.
     (w, h) = (TARGET_WIDTH, TARGET_HEIGHT)
     raw = bytearray(int(w * h / 2))
@@ -236,10 +260,10 @@ def img_to_raw (im, flip, rv, keep_ratio = False):
 
     for j in range(int(h / 2)):
         (y, n1, n2) = (h - 2*j, -1, -2) if flip else (2*j, 0, 1)
-        
+
         for i in range(w):
             x = i if flip else w - i - 1
-            low = im.getpixel((x, y + n1)) >> 4  # divide by 16 to convert to 4bit grayscale 
+            low = im.getpixel((x, y + n1)) >> 4  # divide by 16 to convert to 4bit grayscale
             high = im.getpixel((x, y + n2)) & 0xF0 # (= keep only higher 4 bits)
             byte = high | low
             raw[pos] = 255 - byte if rv else byte
@@ -247,15 +271,8 @@ def img_to_raw (im, flip, rv, keep_ratio = False):
 
     return (raw)
 
-# not used
-def img_to_multi_raw(image, span, flip):
-    image = Image.open(filename)
-    width, height = image.size
-    raws = [img_to_raw(image.crop((0,i*height/btn_span, width, (i+1)*height/btn_span)), flip)
-                for i in range(span)]
-    return (raws)
 
-def ids_from_string (s):
+def ids_from_string(s):
     """Extract (vendor,product) for a line printed by lsusb"""
     s = re.search(r'ID ([0-9A-Fa-f]{4}):([0-9A-Fa-f]{4})\b', s)
     if s is not None:
@@ -266,10 +283,12 @@ def ids_from_string (s):
         print ("ERROR: badly formatted line from lsusb:\n%s"%s)
         return (None)
 
-def wacom_from_id (id):
+
+def wacom_from_id(id):
     return ([wac for wac in USB_IDS if id == wac[0]])
-    
-def get_usb_ids (): # somewhat slow; do it only once if possible.
+
+
+def get_usb_ids(): # somewhat slow; do it only once if possible.
     """Extract Intuos4 (vendor,product) from lsusb.
 
     For me it's (0x056A, 0x00B9) = Intuos4 M
@@ -290,7 +309,8 @@ def get_usb_ids (): # somewhat slow; do it only once if possible.
     print ("Using Wacom %s %s (%s)"%(w[2], w[3], w[1]))
     return (w[0])
 
-def split_path (path):
+
+def split_path(path):
     """Extract (vendor,product) from path.
 
     example: '0003:056A:00B9.0004' ==> 0x056A, 0x00B9
@@ -298,9 +318,9 @@ def split_path (path):
     l = path.replace(':', '.').split('.')
     return (int(l[1], 16), int(l[2], 16))
 
-def get_path (ids):  # this is a bit slow (60ms?)
-    """Find corresponding path in DEVICES_PATH.
-    """
+
+def get_path(ids):  # this is a bit slow (60ms?)
+    """Find corresponding path in DEVICES_PATH."""
     vendor, product = ids
     l = os.listdir(DEVICES_PATH)
     file = [x for x in l if split_path(x) == (vendor, product)]
@@ -310,30 +330,44 @@ def get_path (ids):  # this is a bit slow (60ms?)
         if len(file) > 1:
             print ("Warning: found more than one corresponding directory in %s"%DEVICES_PATH)
         return (os.path.join(DEVICES_PATH, file[0], WACOM_LED))
-    
-def send_raw (raw, button, screen):
 
-    if check_range(button):
+
+def send_raw(raw, button, screen):
+    if check_button_range(button):
         btn_path = os.path.join(screen.path, BUTTON%button)
         #os.chmod(btn_path, stat.S_IWOTH)
         with open(btn_path, "wb") as outfile:
             outfile.write(raw)
         screen.set_raw(button, raw)
 
-def update_raw (raw, button, screen):
+
+def update_raw(raw, button, screen):
     """Send the image to the button only if it has changed."""
     if raw != screen.get_raw(button):
         send_raw(raw, button, screen)
-        
-def send_image (filename, button, screen,
-                    flip = False, rv = False, keep_ratio = False):
 
+
+def send_image(
+    filename,
+    button,
+    screen,
+    flip=False,
+    rv=False,
+    keep_ratio=False,
+):
     im = Image.open(filename)
     raw = img_to_raw(im, flip, rv, keep_ratio)
     update_raw (raw, button, screen)
 
-def send_multi_image (filename, top_button, btn_span, screen,
-                          flip = False, rv = False):
+
+def send_multi_image(
+    filename,
+    top_button,
+    btn_span,
+    screen,
+    flip=False,
+    rv=False,
+):
     """Send an image that will span vertically over several buttons.
 
     The image will start at 'top_button'. 'btn_span' is total the number
@@ -341,7 +375,7 @@ def send_multi_image (filename, top_button, btn_span, screen,
     """
     button = (7 - top_button if flip else top_button)
     if button + btn_span > 8:
-        print ("ERROR: there are no %u button(s) available below #%u"%(btn_span, top_button)) 
+        print ("ERROR: there are no %u button(s) available below #%u"%(btn_span, top_button))
         return (None)
     image = Image.open(filename)
     width = image.size[0]
@@ -353,39 +387,57 @@ def send_multi_image (filename, top_button, btn_span, screen,
         update_raw (raw, button, screen)
         # TODO: better to resize first and split next.
 
-def clear_buttons (button, span, screen, flip):
-    last_button = (button if span is None else
-                       (button - span + 1 if flip else button + span - 1))
+
+def clear_buttons(button, span, screen, flip):
+    last_button = (
+        button if span is None
+        else (button - span + 1 if flip else button + span - 1)
+    )
     r = range(min(button, last_button), max(button, last_button)+1)
     raw = bytearray(int(TARGET_HEIGHT * TARGET_WIDTH / 2))
     for b in r:
         print ("Clearing button %u"%b)
         update_raw (raw, b, screen)
 
-    
-def get_font_path (font):
+
+def get_font_path(font):
     l = subprocess.check_output(["fc-list"])
-    l = l.splitlines()
+    l = [str(line) for line in l.splitlines()]
     f = [x for x in l if font in x]
+
     if f == []:
         print ("ERROR: font %s not found"%font)
-        return (None)
-    return (f[0].split(':')[0])
-    
-def text_to_img (text, output, font = DEFAULT_FONT, size = None, span = None):
+        return None
 
+    return f[0].split(':')[0]
+
+
+def text_to_img(
+    text,
+    output,
+    font=DEFAULT_FONT,
+    size=None,
+    span=None,
+) -> None:
     span = 1 if span is None else span
     if size is None:
         resize = []
     else:
         resize = ["-pointsize", "%u"%size]
     font_path = get_font_path(font)
-    args1 = ["convert",
-                 "-size",  "%ux%u"%(TARGET_WIDTH, span * TARGET_HEIGHT),
-                 "-gravity", "Center",
-                 "-font", font_path,
-                 "-background", "black",
-                 "-fill", "white"]
+    args1 = [
+        "convert",
+        "-size",
+        "%ux%u"%(TARGET_WIDTH, span * TARGET_HEIGHT),
+        "-gravity",
+        "Center",
+        "-font",
+        font_path,
+        "-background",
+        "black",
+        "-fill",
+        "white",
+    ]
     args2 = ["caption:%s"%text, output]
     ret = subprocess.call(args1 + resize + args2)
     if ret == 0:
@@ -393,9 +445,17 @@ def text_to_img (text, output, font = DEFAULT_FONT, size = None, span = None):
         pass
     else:
         print ("ERROR: in creating %s"%output)
-    
-def send_text (text, button, screen, flip = False, span = None,
-                   font = None, size = None):
+
+
+def send_text(
+    text,
+    button,
+    screen,
+    flip=False,
+    span=None,
+    font=None,
+    size=None,
+) -> None:
     """Send text to button.
 
     One can use newline break with '\n'. If 'span' is not None, the text
@@ -410,8 +470,8 @@ def send_text (text, button, screen, flip = False, span = None,
     else:
         send_multi_image (filename, button, span, screen, flip)
     os.remove(filename)
-    
-        
+
+
 #---------------------#
 # Command-line Script #
 #---------------------#
@@ -449,14 +509,14 @@ if __name__ == "__main__":
 
     # INIT
     if args.command == 'init':
-        sudo_init (ids)
+        sudo_init(ids)
         print ("Root initialization done.")
         print (time.strftime('%X %x %Z'))
         exit (0)
 
     screen = Screen(ids, datafile = args.sync, sync = not args.nosync)
 
-    
+
     # UPDATE
     if args.command == 'update':
         exit (0)
@@ -465,8 +525,8 @@ if __name__ == "__main__":
     if args.button is None:
         args.button = 7 if args.flip else 0
         args.span = 8
-        
-    if not check_range(args.button):
+
+    if not check_button_range(args.button):
         exit (1)
 
     # CLEAR
@@ -500,4 +560,3 @@ if __name__ == "__main__":
     if args.text is not None or args.image is not None:
         screen.save()
     print ("Done")
-    
