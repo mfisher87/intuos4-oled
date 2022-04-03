@@ -30,6 +30,10 @@ if [ -z "$user" ]; then
     echo "Error: no user provided. Type 'sudo ./install \$USER'"
     exit 1
 fi
+if [ "$user" == "root" ]; then
+    echo "The positional argument must _not_ be 'root'. Pass a non-root user."
+    exit 1
+fi
 
 # Try acting as the passed in user:
 su $user -c "/bin/true"
