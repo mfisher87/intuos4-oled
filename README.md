@@ -78,7 +78,7 @@ udev events (plus/unplug) you also need the `at` scheduler: in Ubuntu,
 you can do `sudo apt install at python-pil`.
 
 Installing intuos4oled goes as follows: get the archive, unzip, cd into
-it and run the install.sh script. That is, open a terminal and type
+it and run the `scripts/install.sh` script. That is, open a terminal and type
 the following lines (RETURN after each line):
 
 ```bash
@@ -86,7 +86,7 @@ cd /tmp
 wget https://github.com/sanette/intuos4-oled/archive/master.zip
 unzip master.zip
 cd intuos4-oled-master
-sudo ./install.sh $USER
+sudo ./scripts/install.sh $USER
 ```
 That's it! You can now plug in the tablet.
 
