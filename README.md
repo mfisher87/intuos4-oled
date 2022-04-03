@@ -2,6 +2,12 @@
 
 Send cool images and text to the Wacom Intuos 4 OLEDs on Linux.
 
+NOTE: This project differs from the fork source by:
+
+- Explicitly removing Python <=3.6 support
+- Fixes supporting modern versions of Python
+- Adding checks and improved error messages if dependencies not installed
+
 The Intuos4 is an old tablet, but it works well, and you can have fun playing
 with the small OLED screens. There is built-in support in the Linux kernel, but
 the access to it is not so obvious (and several pages on the web are outdated).
@@ -198,10 +204,10 @@ with standard tools:
 
 ### Text is often more useful than images:
 
-![test1](https://github.com/sanette/intuos4-oled/blob/master/images/demos/text_buttons.jpg)
+![test1](./images/demos/text_buttons.jpg)
 
 
 ### But a Haiku and a nice image are good, too:
 
-![test2](https://github.com/sanette/intuos4-oled/blob/master/images/demos/haiku.jpg)
+![test2](./images/demos/haiku.jpg)
 
